@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import shutil
 import os
 import re
 from pathlib import Path
@@ -16,21 +17,24 @@ def _find_source_path(html_text: str) -> Optional[Path]:
     if not m:
         return None
     raw = m.group(1)
-    # doc-gen writes vscode://file//abs/path, so trim leading slashes.
-    return Path(raw.lstrip("/"))
+    # doc-gen writes vscode://file//abs/path, so normalize while keeping absolute.
+    return Path("/" + raw.lstrip("/"))
 
 
 def _insert_trace_link(html_text: str, trace_href: str, label: str = "trace") -> tuple[str, bool]:
-    if TRACE_RE.search(html_text):
-        return html_text, False
+    repl = f'<p class="gh_nav_link"><a href="{html.escape(trace_href)}">{html.escape(label)}</a></p>'
+    # If a trace link already exists, rewrite it to the new href.
+    m_trace = TRACE_RE.search(html_text)
+    if m_trace:
+        new_text = TRACE_RE.sub(repl, html_text, count=1)
+        return new_text, new_text != html_text
 
     m = SOURCE_RE.search(html_text)
     if not m:
         return html_text, False
 
     snippet = m.group(0)
-    extra = f'<p class="gh_nav_link"><a href="{html.escape(trace_href)}">{html.escape(label)}</a></p>'
-    new = html_text.replace(snippet, snippet + extra, 1)
+    new = html_text.replace(snippet, snippet + repl, 1)
     return new, True
 
 
@@ -40,6 +44,8 @@ def inject_trace_link_for_file(
     project_root: Path,
     trace_root: Path,
     label: str = "trace",
+    copy_into: Optional[Path] = None,
+    copy_dirname: str = "_traces",
 ) -> bool:
     text = html_path.read_text(encoding="utf-8")
     src_path = _find_source_path(text)
@@ -53,7 +59,20 @@ def inject_trace_link_for_file(
 
     trace_html = trace_root / rel_src.with_suffix(".trace.html")
     if not trace_html.exists():
-        return False
+        # Fallback to legacy double-suffix path (.trace.trace.html) in case traces were generated earlier.
+        legacy = trace_html.with_name(trace_html.stem + ".trace.html")
+        if legacy.exists():
+            trace_html = legacy
+        else:
+            return False
+
+    # If the trace file is outside the served doc_root, optionally copy it inside.
+    if copy_into is not None:
+        target = copy_into / copy_dirname / rel_src.with_suffix(".trace.html")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            shutil.copy2(trace_html, target)
+        trace_html = target
 
     rel_href = os.path.relpath(trace_html, start=html_path.parent)
     rel_href = Path(rel_href).as_posix()
@@ -78,9 +97,19 @@ def inject_doc_tree(
     project_root: Path,
     trace_root: Path,
     label: str = "trace",
+    copy_into_doc: bool = True,
+    copy_dirname: str = "_traces",
 ) -> list[Path]:
     changed: list[Path] = []
     for p in iter_doc_html(doc_root):
-        if inject_trace_link_for_file(p, project_root=project_root, trace_root=trace_root, label=label):
+        copied_root: Optional[Path] = doc_root if copy_into_doc else None
+        if inject_trace_link_for_file(
+            p,
+            project_root=project_root,
+            trace_root=trace_root,
+            label=label,
+            copy_into=copied_root,
+            copy_dirname=copy_dirname,
+        ):
             changed.append(p)
     return changed

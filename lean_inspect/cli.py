@@ -67,7 +67,8 @@ def cmd_trace_project(args: argparse.Namespace) -> None:
         )
         if args.html:
             for p in json_paths:
-                html_out = p.with_suffix(".trace.html")
+                # Replace .trace.json with .trace.html while keeping directory structure.
+                html_out = p.with_name(p.stem + ".html")
                 build_trace_html(p, html_out)
                 if args.progress:
                     print(f"wrote {html_out}")
@@ -90,6 +91,8 @@ def cmd_inject_doc(args: argparse.Namespace) -> None:
         project_root=project_root,
         trace_root=trace_root,
         label=args.label,
+        copy_into_doc=not args.no_copy,
+        copy_dirname=args.copy_dirname,
     )
     if args.progress:
         for p in changed:
@@ -136,6 +139,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap_doc.add_argument("project_root", help="Lean project root that contains the source files")
     ap_doc.add_argument("trace_root", help="Directory containing generated *.trace.html (same layout as sources)")
     ap_doc.add_argument("--label", default="trace", help="Link label to insert")
+    ap_doc.add_argument("--no-copy", action="store_true", help="Do not copy traces into doc_root (links may 404 if outside served tree)")
+    ap_doc.add_argument("--copy-dirname", default="_traces", help="Subdirectory under doc_root to place copied traces")
     ap_doc.add_argument("--progress", action="store_true", help="Print modified files")
     ap_doc.set_defaults(func=cmd_inject_doc)
 
