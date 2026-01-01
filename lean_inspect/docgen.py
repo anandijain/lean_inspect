@@ -6,19 +6,38 @@ import os
 import re
 from pathlib import Path
 from typing import Iterable, Optional
+from urllib.parse import urlparse
 
 
-SOURCE_RE = re.compile(r'<p class="gh_nav_link">\s*<a [^>]*href="vscode://file/([^"]+)"[^>]*>\s*source\s*</a>\s*</p>', re.IGNORECASE)
+SOURCE_RE = re.compile(r'<p class="gh_nav_link">\s*<a [^>]*href="([^"]+)"[^>]*>\s*source\s*</a>\s*</p>', re.IGNORECASE)
 TRACE_RE = re.compile(r'<p class="gh_nav_link">[^<]*<a [^>]*>\s*trace\s*</a>\s*</p>', re.IGNORECASE)
 
 
-def _find_source_path(html_text: str) -> Optional[Path]:
+def _find_source_path(html_text: str, *, project_root: Path) -> Optional[Path]:
     m = SOURCE_RE.search(html_text)
     if not m:
         return None
-    raw = m.group(1)
+
+    href = html.unescape(m.group(1))
+    parsed = urlparse(href)
+
     # doc-gen writes vscode://file//abs/path, so normalize while keeping absolute.
-    return Path("/" + raw.lstrip("/"))
+    if parsed.scheme == "vscode" and parsed.netloc == "file":
+        return Path("/" + parsed.path.lstrip("/"))
+
+    # GitHub/GitLab blob links: .../blob/<rev>/path/to/File.lean
+    parts = parsed.path.lstrip("/").split("/")
+    if "blob" in parts:
+        blob_idx = parts.index("blob")
+        rel_parts = parts[blob_idx + 2 :]
+        if rel_parts:
+            return (project_root / Path(*rel_parts)).resolve()
+
+    # Fallback: treat the href path as a project-relative file path.
+    if parsed.scheme in {"", "file"} and parsed.path:
+        return (project_root / Path(parsed.path.lstrip("/"))).resolve()
+
+    return None
 
 
 def _insert_trace_link(html_text: str, trace_href: str, label: str = "trace") -> tuple[str, bool]:
@@ -48,7 +67,7 @@ def inject_trace_link_for_file(
     copy_dirname: str = "_traces",
 ) -> bool:
     text = html_path.read_text(encoding="utf-8")
-    src_path = _find_source_path(text)
+    src_path = _find_source_path(text, project_root=project_root)
     if src_path is None:
         return False
 
@@ -100,6 +119,10 @@ def inject_doc_tree(
     copy_into_doc: bool = True,
     copy_dirname: str = "_traces",
 ) -> list[Path]:
+    project_root = project_root.resolve()
+    trace_root = trace_root.resolve()
+    doc_root = doc_root.resolve()
+
     changed: list[Path] = []
     for p in iter_doc_html(doc_root):
         copied_root: Optional[Path] = doc_root if copy_into_doc else None
