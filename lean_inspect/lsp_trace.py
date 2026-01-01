@@ -342,7 +342,7 @@ async def trace_open_file(
                     unique_states[oc.h] = k
         occurrences.extend(occs)
 
-        if progress and (ln - start_line) % 20 == 0:
+        if progress and ((ln - start_line) % 20 == 0 or ln == end_line - 1):
             print(f"scanned {file_path}:{ln}/{end_line - 1}  uniques={len(unique_states)} occs={len(occurrences)}")
 
     await c.notify("textDocument/didClose", {"textDocument": {"uri": uri}})

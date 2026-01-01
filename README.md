@@ -10,6 +10,7 @@ Tools for extracting Lean goal traces via the Lean LSP and wiring them into doc-
   - `uv run lean-inspect trace-project /path/to/PROJECT --out-dir traces --mode adaptive --html --progress`
   - JSON is written with `.trace.json`; if `--html` is set, a companion `.trace.html` viewer is emitted.
 - Inject trace links into doc-gen HTML (adds a “trace” link next to the source link):
-  - `uv run lean-inspect inject-doc /path/to/docbuild/.lake/build/doc /path/to/PROJECT traces --progress`
+  - `uv run lean-inspect inject-doc /path/to/docbuild/.lake/build/doc /path/to/PROJECT /path/to/TRACES --progress`
 
 The `lake` binary is auto-discovered (`lake` on PATH or `~/.elan/bin/lake`). Use `--lake /custom/path` to override.
+

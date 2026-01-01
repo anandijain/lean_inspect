@@ -65,15 +65,20 @@ def inject_trace_link_for_file(
     label: str = "trace",
     copy_into: Optional[Path] = None,
     copy_dirname: str = "_traces",
+    debug: bool = False,
 ) -> bool:
     text = html_path.read_text(encoding="utf-8")
     src_path = _find_source_path(text, project_root=project_root)
     if src_path is None:
+        if debug:
+            print(f"[inject-doc] skip {html_path}: no source link found")
         return False
 
     try:
         rel_src = src_path.relative_to(project_root)
     except ValueError:
+        if debug:
+            print(f"[inject-doc] skip {html_path}: source outside project root ({src_path})")
         return False
 
     trace_html = trace_root / rel_src.with_suffix(".trace.html")
@@ -83,6 +88,8 @@ def inject_trace_link_for_file(
         if legacy.exists():
             trace_html = legacy
         else:
+            if debug:
+                print(f"[inject-doc] skip {html_path}: missing trace {trace_html}")
             return False
 
     # If the trace file is outside the served doc_root, optionally copy it inside.
@@ -118,6 +125,7 @@ def inject_doc_tree(
     label: str = "trace",
     copy_into_doc: bool = True,
     copy_dirname: str = "_traces",
+    debug: bool = False,
 ) -> list[Path]:
     project_root = project_root.resolve()
     trace_root = trace_root.resolve()
@@ -133,6 +141,7 @@ def inject_doc_tree(
             label=label,
             copy_into=copied_root,
             copy_dirname=copy_dirname,
+            debug=debug,
         ):
             changed.append(p)
     return changed

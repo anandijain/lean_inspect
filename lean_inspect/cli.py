@@ -93,6 +93,7 @@ def cmd_inject_doc(args: argparse.Namespace) -> None:
         label=args.label,
         copy_into_doc=not args.no_copy,
         copy_dirname=args.copy_dirname,
+        debug=args.debug,
     )
     if args.progress:
         for p in changed:
@@ -142,6 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap_doc.add_argument("--no-copy", action="store_true", help="Do not copy traces into doc_root (links may 404 if outside served tree)")
     ap_doc.add_argument("--copy-dirname", default="_traces", help="Subdirectory under doc_root to place copied traces")
     ap_doc.add_argument("--progress", action="store_true", help="Print modified files")
+    ap_doc.add_argument("--debug", action="store_true", help="Print skip reasons for files that cannot be patched")
     ap_doc.set_defaults(func=cmd_inject_doc)
 
     return ap
